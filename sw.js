@@ -1,32 +1,31 @@
-const CACHE_NAME = 'snes-dinamico-v4';
+const CACHE_NAME = 'snes-dinamico-v6';
 
-// Salva apenas a estrutura básica do site ao instalar (App Shell)
 const INITIAL_ASSETS = [
   './',
   './index.html',
-  './manifest.json'
+  './manifest.json',
+  'https://cdn.emulatorjs.org/stable/data/loader.js'
 ];
 
-// 1. Instalação: Armazena o App Shell básico
+// 1. Instalação
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] App Shell instalado com sucesso.');
+      console.log('[SW] App Shell e Loader instalados.');
       return cache.addAll(INITIAL_ASSETS);
     })
   );
-  // Nota: Não chamamos skipWaiting() aqui. Assim, o novo Service Worker fica 
-  // aguardando no fundo até o usuário clicar em "Atualizar" no banner do site.
+  self.skipWaiting();
 });
 
-// 2. Ativação: Deleta versões antigas de cache (ex: v1) e assume o controle imediato
+// 2. Ativação: Limpa caches antigos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Removendo cache antigo:', key);
+            console.log('[SW] Deletando cache antigo:', key);
             return caches.delete(key);
           }
         })
@@ -36,16 +35,24 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 3. Interceptação (Fetch): Cache First com Cache Dinâmico Sob Demanda
+// 3. Interceptação (Fetch) com filtro de requisição GET
 self.addEventListener('fetch', (event) => {
+  // IGNORE REQUISIÇÕES NÃO-GET (Evita o erro "Request method POST is unsupported")
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Ignora chamadas de extensões do navegador ou esquemas não-http
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Se o arquivo (ROM, imagem de capa ou página) já estiver salvo no celular, entrega direto!
       if (cachedResponse) {
         return cachedResponse;
       }
 
-      // Se for a primeira vez abrindo com internet, busca na rede e guarda no cache local
       return fetch(event.request).then((networkResponse) => {
         if (
           !networkResponse ||
@@ -67,7 +74,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// 4. Mensagem de Atualização: Ouve o comando enviado pelo index.html quando o usuário clica em "Atualizar"
+// 4. Ouvinte de Atualização
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
