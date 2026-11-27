@@ -1,4 +1,4 @@
-const CACHE_NAME = 'snes-dinamico-v2';
+const CACHE_NAME = 'snes-dinamico-v4';
 
 // Salva apenas a estrutura básica do site ao instalar (App Shell)
 const INITIAL_ASSETS = [
