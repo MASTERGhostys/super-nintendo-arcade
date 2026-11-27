@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest.json">
+  <title>Arcade SNES NFC</title>
+  <style>
+    :root {
+      --bg-color: #0b0d17;
+      --card-bg: rgba(22, 27, 46, 0.9);
+      --accent-red: #e52521;
+      --text-main: #ffffff;
+      --text-dim: #a0a5c0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    body {
+      background: radial-gradient(circle at center, #1a1d36 0%, #0b0d17 100%);
+    }
+
+    /* Container do Emulador em Tela Cheia */
+    #game-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 999;
+      background: #000;
+      display: none;
+    }
+
+    /* TELA DE APRESENTAÇÃO DO JOGO (Apenas quando a Tag NFC é lida corretamente) */
+    #nfc-card-view {
+      display: none;
+      width: 90%;
+      max-width: 420px;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(229, 37, 33, 0.2);
+      text-align: center;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    /* TELA DE ESPERA / BLOQUEIO (Caso acessem sem tag ou sem token) */
+    #idle-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 90%;
+      max-width: 400px;
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .capa-destaque {
+      width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+      margin-bottom: 16px;
+      background-color: #000;
+    }
+
+    .info-badge {
+      display: inline-block;
+      background: rgba(229, 37, 33, 0.2);
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+
+    .jogo-titulo {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .jogo-detalhes {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+
+    .btn-play-nfc {
+      width: 100%;
+      background: linear-gradient(135deg, #e52521 0%, #b31217 100%);
+      color: #fff;
+      border: none;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 800;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(229, 37, 33, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: transform 0.15s ease;
+    }
+
+    .btn-play-nfc:active {
+      transform: scale(0.97);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TELA 1: Apresentação Exclusiva do Jogo da Tag NFC -->
+  <div id="nfc-card-view">
+    <span class="info-badge" id="nfc-genero">Super Nintendo</span>
+    <img id="nfc-capa" class="capa-destaque" src="" alt="Capa do Jogo">
+    <h2 class="jogo-titulo" id="nfc-titulo">Nome do Jogo</h2>
+    <p class="jogo-detalhes" id="nfc-descricao">Descrição do jogo.</p>
+    <button class="btn-play-nfc" onclick="iniciarEmulador()">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      JOGAR AGORA
+    </button>
+  </div>
+
+  <!-- TELA 2: Tela de Bloqueio / Aguardando Tag NFC (Exibida na raiz ou acesso negado) -->
+  <div id="idle-screen">
+    <div style="font-size: 52px; margin-bottom: 12px;" id="idle-icon">🏷️</div>
+    <h1 style="color: #fff; font-size: 20px; margin-bottom: 8px;" id="idle-title">Arcade NFC Restrito</h1>
+    <p style="color: var(--text-dim); font-size: 13px; line-height: 1.4;" id="idle-text">Aproxime o seu chaveiro NFC original do Super Nintendo no celular para liberar o acesso ao jogo.</p>
+  </div>
+
+  <!-- TELA 3: Container do Emulador -->
+  <div id="game-container">
+    <div id="game"></div>
+  </div>
+
+  <script>
+    // 1. Chave Secreta de Segurança do NFC
+    const CHAVE_NFC_SECRETA = "99";
+
+    // 2. BANCO DE DADOS DOS JOGOS
+    const BANCO_JOGOS = {
+      "mario_world": {
+        titulo: "Super Mario World",
+        genero: "Plataforma • 1990",
+        descricao: "Junte-se a Mario e Yoshi em uma jornada épica pela Dinosaur Land para salvar a Princesa Peach do Bowser!",
+        capa: "./capas/mario.jpeg",
+        rom: "mario.sfc"
+      },
+      "super_mario_kart": {
+        titulo: "Super Mario Kart",
+        genero: "Corrida/Arcade • 1992",
+        descricao: "Escolha seu personagem favorito do universo Mario e corra em pistas cheias de desafios e power-ups!",
+        capa: "./capas/mario_kart.jpeg",
+        rom: "mario_kart.sfc"
+      },
+      "top_gear": {
+        titulo: "Top Gear",
+        genero: "Corrida • 1992",
+        descricao: "Acelere em pistas pelo mundo inteiro com uma trilha sonora inesquecível de corrida em alta velocidade!",
+        capa: "./capas/top_gear.jpeg",
+        rom: "top_gear.smc"
+      },
+      "donkey_kong_country": {
+        titulo: "Donkey Kong Country",
+        genero: "Aventura/Plataforma • 1994",
+        descricao: "Ajude Donkey Kong e Diddy Kong a recuperar seu estoque de bananas roubadas pelo malvado King K. Rool.",
+        capa: "./capas/donkey_kong.jpeg",
+        rom: "donkey_kong.sfc"
+      },
+      "zelda": {
+        titulo: "Zelda: A Link to the Past",
+        genero: "Aventura • 1991",
+        descricao: "Explore o Reino de Hyrule e o Dark World nesta lendária jornada para derrotar o vilão Ganon.",
+        capa: "./capas/zelda.jpeg",
+        rom: "zelda.sfc"
+      },
+      "batman_returns": {
+        titulo: "Batman Returns",
+        genero: "Ação/Plataforma • 1992",
+        descricao: "Controle o Cavaleiro das Trevas em Gotham City e enfrente os vilões Penguin e Catwoman.",
+        capa: "./capas/batman_returns.jpeg",
+        rom: "batman_returns.sfc"
+      },
+      "bomberman_4": {
+        titulo: "Super Bomberman 4",
+        genero: "Ação/Arcade • 1996",
+        descricao: "Coloque bombas estrategicamente para derrotar inimigos e salvar o mundo em um jogo de ação explosivo!",
+        capa: "./capas/bomberman_4.jpeg",
+        rom: "bomberman_4.sfc"
+      },
+      "mortal_kombat_2": {
+        titulo: "Mortal Kombat II",
+        genero: "Luta/Arcade • 1993",
+        descricao: "Escolha seu lutador favorito e participe do torneio Mortal Kombat para derrotar inimigos e realizar fatalities!",
+        capa: "./capas/mortal_kombat_ii.jpeg",
+        rom: "mortal_kombat_ii.sfc"
+      }
+    };
+
+    // 3. Leitura dos parâmetros da URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const chaveJogo = urlParams.get('j');
+    const tokenRecebido = urlParams.get('t');
+    let jogoSelecionado = null;
+
+    const acessoValido = sessionStorage.getItem('nfc_autenticado') === 'true' || tokenRecebido === CHAVE_NFC_SECRETA;
+
+    // 4. LÓGICA DE VALIDAÇÃO RIGOROSA
+    if (chaveJogo && BANCO_JOGOS[chaveJogo]) {
+      if (!acessoValido) {
+        // Tentou burlar ou abrir link direto sem a tag NFC
+        document.getElementById('idle-icon').innerText = '🔒';
+        document.getElementById('idle-title').innerText = 'Acesso Bloqueado!';
+        document.getElementById('idle-text').innerHTML = 'Esta ROM é protegida por chaveiro físico. Aproxime a <b>Tag NFC oficial</b> para destravar.';
+        document.getElementById('idle-screen').style.display = 'flex';
+      } else {
+        // Tag válida! Salva sessão e limpa o token feio da barra de endereço
+        sessionStorage.setItem('nfc_autenticado', 'true');
+        window.history.replaceState({}, document.title, window.location.pathname + `#${chaveJogo}`);
+
+        // Exibe o card exclusivo do jogo correspondente à tag
+        jogoSelecionado = BANCO_JOGOS[chaveJogo];
+        document.getElementById('nfc-titulo').innerText = jogoSelecionado.titulo;
+        document.getElementById('nfc-genero').innerText = jogoSelecionado.genero;
+        document.getElementById('nfc-descricao').innerText = jogoSelecionado.descricao;
+        document.getElementById('nfc-capa').src = jogoSelecionado.capa;
+        
+        document.getElementById('nfc-card-view').style.display = 'block';
+      }
+    } else {
+      // Acesso sem parâmetro de jogo (entrou direto no link raiz do Vercel)
+      document.getElementById('idle-screen').style.display = 'flex';
+    }
+
+    // 5. INICIALIZAÇÃO DO EMULADOR
+    function iniciarEmulador() {
+      if (!jogoSelecionado) return;
+
+      document.getElementById('nfc-card-view').style.display = 'none';
+      document.getElementById('game-container').style.display = 'block';
+
+      EJS_player = '#game';
+      EJS_core = 'snes';
+      EJS_gameUrl = `./roms/${jogoSelecionado.rom}`;
+      EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+      EJS_startOnLoaded = true;
+
+      const scriptLoader = document.createElement('script');
+      scriptLoader.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+      document.body.appendChild(scriptLoader);
+    }
+
+    // 6. REGISTRO DO SERVICE WORKER (Modo Offline)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('[SW] Registrado com sucesso:', reg.scope))
+          .catch((err) => console.error('[SW] Erro no registro:', err));
+      });
+    }
+  </script>
+</body>
+</html>
